@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="es" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <title>Rondas — Torneo Commander</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='dark.css') }}" rel="stylesheet">
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-dark">
+    <div class="container">
+      <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
+        <img src="{{ url_for('static', filename='img/gamecomms.png') }}" class="brand-logo" alt="GameComms">
+        <span>GameComms — Torneo Commander</span>
+      </a>
+      <div class="d-flex gap-2">
+        <a class="btn btn-outline-light btn-sm" href="{{ url_for('index') }}">Clasificación</a>
+        <a class="btn btn-outline-light btn-sm" href="{{ url_for('rounds_view') }}">Rondas</a>
+        {% if is_admin %}
+          <a class="btn btn-outline-light btn-sm" href="{{ url_for('logout') }}">Cerrar sesión</a>
+        {% else %}
+          <a class="btn btn-outline-light btn-sm" href="{{ url_for('login') }}">Login admin</a>
+        {% endif %}
+      </div>
+    </div>
+  </nav>
+
+  <div class="container py-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-3">
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{cat}}">{{ msg }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <div class="hero mb-3 d-flex align-items-center gap-3">
+      <img src="{{ url_for('static', filename='img/gamecomms.png') }}" class="brand-logo" alt="GameComms">
+      <div>
+        <h1 class="h3 mb-1">Rondas y resultados</h1>
+        <small class="text-muted">Puntuación: 1º=3 · 2º=2 · 3º=1 · Barrida: solo 1º puntúa (3).</small>
+      </div>
+    </div>
+
+    {% for r in rounds %}
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center">
+            <h4 class="card-title mb-0">Ronda {{ r.number }}</h4>
+
+            {% if is_admin %}
+              <div class="d-flex align-items-center gap-2">
+                <a class="btn btn-outline-primary btn-sm"
+                   href="{{ url_for('round_edit', round_no=r.number) }}">Editar mesas</a>
+
+                <form class="d-flex align-items-center gap-2"
+                      method="post"
+                      action="{{ url_for('round_set_bye', round_no=r.number) }}">
+                  <label class="form-label mb-0">Descanso:</label>
+                  <select class="form-select form-select-sm" name="bye_player_id" style="width: 220px;">
+                    <option value="none">Nadie</option>
+                    {% for p in players_all %}
+                      <option value="{{ p.id }}" {% if r.bye_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                  </select>
+                  <button class="btn btn-sm btn-primary">Guardar</button>
+                </form>
+              </div>
+            {% else %}
+              {% if r.bye %}
+                <span class="badge bg-secondary">Descanso: {{ r.bye }}</span>
+              {% endif %}
+            {% endif %}
+          </div>
+
+          <hr>
+
+          <div class="table-responsive">
+            <table class="table table-sm align-middle">
+              <thead>
+                <tr>
+                  <th style="width:80px;">Mesa</th>
+                  <th>Jugadores (orden por posición)</th>
+                  <th style="width:150px;">Ganador</th>
+                  <th style="width:150px;">Segundo</th>
+                  <th style="width:150px;">Tercero</th>
+                  <th style="width:150px;">Salvavidas</th>
+                  <th>Carta baneada</th>
+                  {% if is_admin %}<th style="width:110px;">Acciones</th>{% endif %}
+                </tr>
+              </thead>
+              <tbody>
+                {% for g in r.games %}
+                  <tr>
+                    <td><strong>{{ g.table }}</strong></td>
+                    <td>
+                      {% for p in g.participants %}
+                        <span class="me-2">
+                          {{ p.name }}{% if p.pos %} <small class="text-muted">(pos {{ p.pos }})</small>{% endif %}
+                        </span>
+                      {% endfor %}
+                      {% if g.sweep %}
+                        <span class="badge bg-warning text-dark ms-2">Barrida</span>
+                      {% endif %}
+                    </td>
+                    <td>{{ g.winner or "—" }}</td>
+                    <td>{{ g.second or "—" }}</td>
+                    <td>{{ g.third  or "—" }}</td>
+                    <td>{% if g.save %}<span class="badge bg-info">🛡️ {{ g.save }}</span>{% else %}—{% endif %}</td>
+                    <td>
+                      {% if g.banned %}
+                        <span class="scryfall-card" data-cardname="{{ g.banned }}">{{ g.banned }}</span>
+                      {% else %}—{% endif %}
+                    </td>
+                    {% if is_admin %}
+                      <td>
+                        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('game_edit', game_id=g.id) }}">Editar</a>
+                      </td>
+                    {% endif %}
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Scryfall hover preview -->
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const cache = new Map(); // name -> imageURL|null
+    const preview = document.createElement('div');
+    preview.className = 'scryfall-preview';
+    preview.style.display = 'none';
+    preview.innerHTML = '<div class="inner"></div>';
+    document.body.appendChild(preview);
+    const inner = preview.querySelector('.inner');
+
+    function positionPreview(e) {
+      const pad = 16;
+      let x = e.clientX + pad;
+      let y = e.clientY + pad;
+      const rect = preview.getBoundingClientRect();
+      const vw = window.innerWidth, vh = window.innerHeight;
+      if (x + rect.width > vw) x = e.clientX - rect.width - pad;
+      if (y + rect.height > vh) y = e.clientY - rect.height - pad;
+      preview.style.left = x + 'px';
+      preview.style.top  = y + 'px';
+    }
+
+    async function fetchImage(name) {
+      if (cache.has(name)) return cache.get(name);
+      try {
+        // fuzzy tolera typos ("Peregrin Took", "Ureni..." etc.)
+        const url = 'https://api.scryfall.com/cards/named?fuzzy=' + encodeURIComponent(name);
+        const res = await fetch(url);
+        if (!res.ok) { cache.set(name, null); return null; }
+        const data = await res.json();
+        let img = null;
+        if (data.image_uris) {
+          img = data.image_uris.normal || data.image_uris.large || data.image_uris.small;
+        } else if (Array.isArray(data.card_faces) && data.card_faces[0]?.image_uris) {
+          img = data.card_faces[0].image_uris.normal || data.card_faces[0].image_uris.large || data.card_faces[0].image_uris.small;
+        }
+        cache.set(name, img);
+        return img;
+      } catch (e) {
+        cache.set(name, null);
+        return null;
+      }
+    }
+
+    function show(url, name) {
+      if (!url) return;
+      inner.innerHTML = `<img src="${url}" alt="${name}" style="display:block; max-width:280px; height:auto; border-radius:10px;">`;
+      preview.style.display = 'block';
+    }
+    function hide() { preview.style.display = 'none'; }
+
+    document.addEventListener('mouseover', async (e) => {
+      const el = e.target.closest('.scryfall-card');
+      if (!el) return;
+      positionPreview(e);
+      const name = el.getAttribute('data-cardname');
+      const url  = await fetchImage(name);
+      show(url, name);
+    });
+    document.addEventListener('mousemove', (e) => {
+      if (preview.style.display === 'block') positionPreview(e);
+    });
+    document.addEventListener('mouseout', (e) => {
+      if (e.relatedTarget && e.relatedTarget.closest && e.relatedTarget.closest('.scryfall-card')) return;
+      hide();
+    });
+  });
+  </script>
+</body>
+</html>

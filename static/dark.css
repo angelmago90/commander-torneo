@@ -1,0 +1,88 @@
+:root{
+  --bg:#0b0f17;           /* fondo */
+  --surface:#121826;      /* cards */
+  --muted:#94a3b8;        /* texto secundario */
+  --text:#e2e8f0;         /* texto principal */
+
+  /* Colores del logo/gradiente (inspirados en tu imagen) */
+  --brand1:#f59e0b; /* amber */
+  --brand2:#ec4899; /* pink */
+  --brand3:#6366f1; /* indigo */
+  --brand4:#22d3ee; /* cyan */
+}
+
+html,body{
+  background:
+    radial-gradient(1200px 800px at 10% 0%, #0f172a 0%, var(--bg) 45%, #070a10 100%);
+  color:var(--text);
+}
+
+.navbar{
+  background:linear-gradient(90deg, rgba(99,102,241,.12), rgba(236,72,153,.12));
+  backdrop-filter: blur(8px);
+  border-bottom:1px solid #1f2937;
+}
+
+.brand-logo{
+  height:36px; margin-right:.5rem; border-radius:6px;
+  filter:drop-shadow(0 0 8px rgba(99,102,241,.6));
+}
+
+.card{ background:var(--surface); border:1px solid #1f2937; }
+
+.table{ color:var(--text); }
+.table thead th{ color:#e5e7eb; border-color:#1f2937; }
+.table tbody tr{ border-color:#1f2937; }
+.table tbody tr:hover{ background:rgba(99,102,241,.08); }
+
+/* resalta Top 4 en oscuro */
+.table-success{
+  --bs-table-bg: rgba(34,197,94,.18);
+  --bs-table-color: var(--text);
+}
+
+.btn-primary{
+  background:linear-gradient(135deg, var(--brand3), var(--brand4));
+  border:0;
+}
+.btn-primary:hover{ filter:brightness(1.08); }
+
+.btn-warning{
+  background:linear-gradient(135deg, var(--brand1), var(--brand2));
+  border:0; color:#111827;
+}
+.btn-outline-light{ border-color:#475569; color:#e2e8f0; }
+.btn-outline-light:hover{ background:#334155; color:#fff; }
+
+.form-control,.form-select{
+  background-color:#0f1522; border-color:#233047; color:var(--text);
+}
+.form-control:focus,.form-select:focus{
+  border-color:var(--brand3);
+  box-shadow:0 0 0 .2rem rgba(99,102,241,.25);
+}
+
+.badge.bg-warning.text-dark{ color:#111827 !important; }
+hr{ border-color:#1f2937; }
+small.text-muted{ color:var(--muted) !important; }
+
+.hero{
+  background:linear-gradient(135deg,
+    rgba(245,158,11,.15), rgba(236,72,153,.12), rgba(34,211,238,.12));
+  border:1px solid #1f2937; border-radius:16px;
+  padding:14px 18px; box-shadow:0 6px 24px rgba(2,8,23,.35);
+}
+
+.scryfall-preview{
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background: rgba(2,8,23,.92);
+  border: 1px solid #233047;
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.scryfall-preview .inner{
+  display: block;
+}
