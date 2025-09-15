@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-# --- Config básica (si usas .env puedes leer con python-dotenv; no es obligatorio) ---
+# --- Config básica ---
 app = Flask(__name__)
 
 # Ruta absoluta a torneo.db (funciona en Windows y en PythonAnywhere)
@@ -310,7 +310,7 @@ def rounds_view():
             "third": third,
             "banned": g.banned_card,
             "sweep": g.sweep,
-            "save": (g.save_player.name if g.save_player else None)  # << NUEVO
+            "save": (g.save_player.name if g.save_player else None)  # Salvavidas
         })
 
     ordered = []
