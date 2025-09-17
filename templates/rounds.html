@@ -94,9 +94,16 @@
               </thead>
               <tbody>
                 {% for g in r.games %}
-                  <tr>
-                    <td><strong>{{ g.table }}</strong></td>
+                  <tr class="{% if g.played %}game-played{% endif %}">
                     <td>
+                      <strong>
+                        {% if g.played %}
+                          <span class="badge bg-success me-1">✓</span>
+                        {% endif %}
+                        {{ g.table }}
+                      </strong>
+                    </td>
+                    <td class="{% if g.played %}played-underline{% endif %}">
                       {% for p in g.participants %}
                         <span class="me-2">
                           {{ p.name }}{% if p.pos %} <small class="text-muted">(pos {{ p.pos }})</small>{% endif %}

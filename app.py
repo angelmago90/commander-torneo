@@ -299,6 +299,9 @@ def rounds_view():
         second = next((r.player.name for r in g.results if r.position == 2), None)
         third  = next((r.player.name for r in g.results if r.position == 3), None)
 
+        # ¿Esta mesa tiene ganador? (cualquier r.position==1 o g.sweep marcado)
+        has_winner = any(r.position == 1 for r in g.results) or bool(g.sweep)
+
         bye_name, bye_id = bye_by_round.get(g.round_number, (None, None))
         rounds.setdefault(g.round_number, {"bye": bye_name, "bye_id": bye_id, "games": []})
         rounds[g.round_number]["games"].append({
@@ -310,7 +313,8 @@ def rounds_view():
             "third": third,
             "banned": g.banned_card,
             "sweep": g.sweep,
-            "save": (g.save_player.name if g.save_player else None)  # Salvavidas
+            "save": (g.save_player.name if g.save_player else None),  # Salvavidas
+            "played": has_winner
         })
 
     ordered = []

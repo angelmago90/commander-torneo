@@ -86,3 +86,17 @@ small.text-muted{ color:var(--muted) !important; }
 .scryfall-preview .inner{
   display: block;
 }
+
+/* Mesa jugada: sutil fondo y “barra” verde al lado izquierdo */
+.game-played{
+  background: rgba(34,197,94,.08);           /* verde suave */
+  box-shadow: inset 3px 0 0 #22c55e;         /* barra lateral */
+}
+
+/* Subrayado verde en la lista de jugadores */
+.played-underline{
+  text-decoration: underline;
+  text-decoration-color: #22c55e;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
