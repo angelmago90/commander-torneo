@@ -63,7 +63,14 @@
             {% for row in table %}
             <tr class="{% if row.pos <= 4 %}table-success{% endif %}">
               <td><strong>{{ row.pos }}</strong></td>
-              <td>{{ row.name }}</td>
+              <td>
+                {{ row.name }}
+                {% if row.status == 'CLASIFICADO' %}
+                  <span class="badge bg-success ms-2">Clasificado</span>
+                {% elif row.status == 'ELIMINADO' %}
+                  <span class="badge bg-danger ms-2">Eliminado</span>
+                {% endif %}
+              </td>
               <td>{{ row.points }}</td>
               <td>{{ row.wins }}</td>
               <td>{{ row.seconds }}</td>
@@ -81,6 +88,10 @@
           </table>
         </div>
         <small class="text-muted">Desempate: Puntos → Victorias.</small>
+        <small class="text-muted">
+        Las etiquetas se calculan de forma conservadora con límites de puntos (3 por victoria + 1 por salvavidas por partida restante).
+        No se consideran desempates por medallero al proyectar; si hay posibilidad de empate, no se etiqueta.
+        </small>
       </div>
     </div>
     <!-- Participación -->

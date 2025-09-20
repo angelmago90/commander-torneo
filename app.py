@@ -178,39 +178,38 @@ def import_initial_rounds():
 def index():
     players = Player.query.order_by(Player.name.asc()).all()
 
-    # Totales con medallero + salvavidas
+    # Totales (medallero + salvavidas)
     totals = {
         p.id: {"name": p.name, "points": 0, "wins": 0, "seconds": 0, "thirds": 0, "saves": 0}
         for p in players
     }
 
     from collections import defaultdict
-    played_rounds = defaultdict(set)    # player_id -> set de rondas jugadas (solo mesas con ganador)
-    rests_by_player = defaultdict(int)  # descansos asignados por jugador (todas las rondas planificadas)
+    played_rounds = defaultdict(set)    # player_id -> rondas YA jugadas (mesa con ganador o barrida)
+    rests_by_player = defaultdict(int)  # descansos asignados
     all_rounds = set()                  # rondas planificadas (por Game o RoundInfo)
 
-    # Descansos (asignados)
+    # Descansos (planificados)
     for ri in RoundInfo.query.all():
         all_rounds.add(ri.number)
         if ri.bye_player_id:
             rests_by_player[ri.bye_player_id] += 1
 
-    # Recorremos mesas
+    # Mesas
     games = Game.query.order_by(Game.round_number.asc(), Game.table_no.asc()).all()
     for g in games:
         all_rounds.add(g.round_number)
 
-        # Salvavidas: suma punto + contador
+        # Salvavidas: +1 punto y +1 contador
         if g.save_player_id and g.save_player_id in totals:
             totals[g.save_player_id]["points"] += 1
             totals[g.save_player_id]["saves"] += 1
 
-        # ¿Esta mesa tiene ganador? (cualquier r.position==1 o g.sweep marcado)
+        # ¿Mesa con ganador? (pos=1 o barrida)
         has_winner = any(r.position == 1 for r in g.results) or bool(g.sweep)
 
         # Pódium y jugadas
         for r in g.results:
-            # Puntos del pódium (3-2-1; en barrida solo 1º recibe 3)
             pts = points_for_position(r.position, g.sweep)
             totals[r.player_id]["points"] += pts
             if r.position == 1:
@@ -219,17 +218,61 @@ def index():
                 totals[r.player_id]["seconds"] += 1
             elif r.position == 3:
                 totals[r.player_id]["thirds"] += 1
-
-            # Marca esta ronda como jugada para TODOS los participantes
-            # de la mesa si la mesa ya tiene ganador (incluye barrida)
+            # Si la mesa tiene ganador, cuenta como jugada
             if has_winner:
                 played_rounds[r.player_id].add(g.round_number)
 
     total_rounds = len(all_rounds)
 
-    # Tabla principal (medallero)
+    # Participación y límites de puntos
+    per_player = {}
+    for p in players:
+        played = len(played_rounds[p.id])
+        rests = rests_by_player[p.id]
+        planned_to_play = max(total_rounds - rests, 0)    # partidas que le corresponden
+        remaining = max(planned_to_play - played, 0)      # le faltan por jugar
+        lb = totals[p.id]["points"]                       # mínimo: lo que ya tiene
+        ub = lb + 4 * remaining                           # máximo: 4 por partida restante
+
+        per_player[p.id] = {
+            "name": p.name,
+            "points": totals[p.id]["points"],
+            "wins": totals[p.id]["wins"],
+            "seconds": totals[p.id]["seconds"],
+            "thirds": totals[p.id]["thirds"],
+            "saves": totals[p.id]["saves"],
+            "played": played,
+            "rests": rests,
+            "planned_to_play": planned_to_play,
+            "remaining": remaining,
+            "lb": lb,
+            "ub": ub,
+        }
+
+    # Etiquetas de CLASIFICADO / ELIMINADO (criterio conservador por puntos)
+    ids = list(per_player.keys())
+    for pid in ids:
+        me = per_player[pid]
+        # rivales
+        rival_LBs = sorted([per_player[q]["lb"] for q in ids if q != pid], reverse=True)
+        rival_UBs = sorted([per_player[q]["ub"] for q in ids if q != pid], reverse=True)
+        # 4º mejor rival (índice 3)
+        fourth_best_rival_LB = rival_LBs[3]
+        fourth_best_rival_UB = rival_UBs[3]
+
+        status = None
+        # Clinched: ni en el peor caso puede caer del top-4
+        if me["lb"] > fourth_best_rival_UB:
+            status = "CLASIFICADO"
+        # Eliminado: ni en el mejor caso puede alcanzar el top-4
+        elif me["ub"] < fourth_best_rival_LB:
+            status = "ELIMINADO"
+
+        me["status"] = status
+
+    # Construye tabla principal (orden medallero: puntos → 1º → 2º → 3º → nombre)
     table = []
-    for pid, row in totals.items():
+    for pid, row in per_player.items():
         table.append({
             "id": pid,
             "name": row["name"],
@@ -238,13 +281,13 @@ def index():
             "seconds": row["seconds"],
             "thirds": row["thirds"],
             "saves": row["saves"],
+            "status": row["status"],
         })
 
-    # Orden tipo medallero: puntos → 1º → 2º → 3º → nombre
     table.sort(key=lambda x: x["name"])
     table.sort(key=lambda x: (x["points"], x["wins"], x["seconds"], x["thirds"]), reverse=True)
 
-    # Posiciones con empates si todos los criterios coinciden
+    # Posición (empatada si coinciden todos los criterios)
     last_key = None
     current_pos = 0
     for i, t in enumerate(table, start=1):
@@ -254,22 +297,17 @@ def index():
             last_key = key
         t["pos"] = current_pos
 
-    # Participación: jugadas reales (mesas con ganador) y pendientes
+    # Sección de participación para mostrar jugadas/pedientes
     participation = []
-    for p in players:
-        played = len(played_rounds[p.id])             # rondas efectivamente jugadas
-        rests = rests_by_player[p.id]                 # descansos asignados (en todas las rondas planificadas)
-        planned_to_play = max(total_rounds - rests, 0)  # lo que debería jugar en total
-        remaining = max(planned_to_play - played, 0)    # lo que le falta realmente
-
+    for pid in ids:
+        r = per_player[pid]
         participation.append({
-            "name": p.name,
-            "played": played,
-            "remaining": remaining,
-            "rests": rests,
-            "planned_to_play": planned_to_play,
+            "name": r["name"],
+            "played": r["played"],
+            "remaining": r["remaining"],
+            "rests": r["rests"],
+            "planned_to_play": r["planned_to_play"],
         })
-
     participation.sort(key=lambda x: x["name"])
 
     return render_template(
