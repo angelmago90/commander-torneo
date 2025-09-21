@@ -472,6 +472,80 @@ def game_edit(game_id):
     }
     return render_template("game_edit.html", **context)
 
+# === Acciones sobre mesas (admin) === Limpiar, borrar, limpiar ronda, reiniciar torneo
+
+@app.route("/games/<int:game_id>/reset", methods=["POST"])
+def game_reset(game_id):
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("rounds_view"))
+
+    g = Game.query.get_or_404(game_id)
+
+    # Limpiar campos de la partida
+    g.banned_card = None
+    g.sweep = False
+    g.save_player_id = None
+
+    # Poner posiciones en blanco (None) para todos los participantes
+    for r in g.results:
+        r.position = None
+
+    db.session.commit()
+    flash(f"Ronda {g.round_number} Mesa {g.table_no} vaciada.", "success")
+    return redirect(url_for("rounds_view"))
+
+
+@app.route("/games/<int:game_id>/delete", methods=["POST"])
+def game_delete(game_id):
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("rounds_view"))
+
+    g = Game.query.get_or_404(game_id)
+    rn, tn = g.round_number, g.table_no
+    # Al borrar Game, sus GameResult se eliminan por el cascade="all, delete-orphan"
+    db.session.delete(g)
+    db.session.commit()
+    flash(f"Ronda {rn} Mesa {tn} eliminada.", "success")
+    return redirect(url_for("rounds_view"))
+
+
+@app.route("/rounds/<int:round_no>/clear", methods=["POST"])
+def round_clear(round_no):
+    """Vacía ambas mesas de la ronda (si existen) y mantiene el descanso."""
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("rounds_view"))
+
+    games = Game.query.filter_by(round_number=round_no).all()
+    for g in games:
+        g.banned_card = None
+        g.sweep = False
+        g.save_player_id = None
+        for r in g.results:
+            r.position = None
+    db.session.commit()
+    flash(f"Ronda {round_no}: mesas vaciadas (se mantiene el descanso).", "success")
+    return redirect(url_for("rounds_view"))
+
+
+@app.route("/admin/reset_tournament", methods=["POST"])
+def reset_tournament():
+    """Elimina todas las rondas y mesas, manteniendo los jugadores."""
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("rounds_view"))
+
+    # Borrar via ORM para respetar cascade en Game.results
+    for g in Game.query.all():
+        db.session.delete(g)
+    for ri in RoundInfo.query.all():
+        db.session.delete(ri)
+    db.session.commit()
+    flash("Torneo reiniciado: se borraron todas las mesas y descansos. Jugadores conservados.", "warning")
+    return redirect(url_for("rounds_view"))
+
 # --- util ---
 def get_or_create_game(round_no: int, table_no: int) -> Game:
     g = Game.query.filter_by(round_number=round_no, table_no=table_no).first()

@@ -37,7 +37,7 @@ html,body{
 
 /* resalta Top 4 en oscuro */
 .table-success{
-  --bs-table-bg: rgba(34,197,94,.18);
+  --bs-table-bg: rgba(22, 229, 77, 0.434);
   --bs-table-color: var(--text);
 }
 
@@ -100,3 +100,8 @@ small.text-muted{ color:var(--muted) !important; }
   text-decoration-thickness: 2px;
   text-underline-offset: 3px;
 }
+
+.btn-outline-warning { border-color:#f59e0b; }
+.btn-outline-warning:hover { background:#f59e0b; color:#111827; }
+.btn-outline-danger { border-color:#ef4444; }
+.btn-outline-danger:hover { background:#ef4444; color:#111827; }

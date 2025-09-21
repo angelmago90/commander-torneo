@@ -50,26 +50,31 @@
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center">
             <h4 class="card-title mb-0">Ronda {{ r.number }}</h4>
+              {% if is_admin %}
+                <div class="d-flex align-items-center gap-2">
+                  <a class="btn btn-outline-primary btn-sm"
+                    href="{{ url_for('round_edit', round_no=r.number) }}">Editar mesas</a>
+                  <form class="d-inline"
+                        method="post"
+                        action="{{ url_for('round_clear', round_no=r.number) }}"
+                        onsubmit="return confirm('¿Vaciar todas las mesas de la ronda {{ r.number }}? Se mantienen los descansos.');">
+                    <button class="btn btn-outline-warning btn-sm">Vaciar ronda</button>
+                  </form>
 
-            {% if is_admin %}
-              <div class="d-flex align-items-center gap-2">
-                <a class="btn btn-outline-primary btn-sm"
-                   href="{{ url_for('round_edit', round_no=r.number) }}">Editar mesas</a>
-
-                <form class="d-flex align-items-center gap-2"
-                      method="post"
-                      action="{{ url_for('round_set_bye', round_no=r.number) }}">
-                  <label class="form-label mb-0">Descanso:</label>
-                  <select class="form-select form-select-sm" name="bye_player_id" style="width: 220px;">
-                    <option value="none">Nadie</option>
-                    {% for p in players_all %}
-                      <option value="{{ p.id }}" {% if r.bye_id == p.id %}selected{% endif %}>{{ p.name }}</option>
-                    {% endfor %}
-                  </select>
-                  <button class="btn btn-sm btn-primary">Guardar</button>
-                </form>
-              </div>
-            {% else %}
+                  <form class="d-flex align-items-center gap-2"
+                        method="post"
+                        action="{{ url_for('round_set_bye', round_no=r.number) }}">
+                    <label class="form-label mb-0">Descanso:</label>
+                    <select class="form-select form-select-sm" name="bye_player_id" style="width: 220px;">
+                      <option value="none">Nadie</option>
+                      {% for p in players_all %}
+                        <option value="{{ p.id }}" {% if r.bye_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+                      {% endfor %}
+                    </select>
+                    <button class="btn btn-sm btn-primary">Guardar</button>
+                  </form>
+                </div>
+              {% else %}
               {% if r.bye %}
                 <span class="badge bg-secondary">Descanso: {{ r.bye }}</span>
               {% endif %}
@@ -89,7 +94,7 @@
                   <th style="width:150px;">Tercero</th>
                   <th style="width:150px;">Salvavidas</th>
                   <th>Carta baneada</th>
-                  {% if is_admin %}<th style="width:110px;">Acciones</th>{% endif %}
+                  {% if is_admin %}<th style="width:230px;">Acciones</th>{% endif %}
                 </tr>
               </thead>
               <tbody>
@@ -123,8 +128,21 @@
                       {% else %}—{% endif %}
                     </td>
                     {% if is_admin %}
-                      <td>
-                        <a class="btn btn-outline-primary btn-sm" href="{{ url_for('game_edit', game_id=g.id) }}">Editar</a>
+                      <td class="text-nowrap">
+                        <a class="btn btn-outline-primary btn-sm"
+                          href="{{ url_for('game_edit', game_id=g.id) }}">Editar</a>
+
+                        <form method="post" action="{{ url_for('game_reset', game_id=g.id) }}"
+                              class="d-inline"
+                              onsubmit="return confirm('¿Vaciar esta mesa? Se borran posiciones, barrida, salvavidas y baneada.');">
+                          <button class="btn btn-outline-warning btn-sm">Vaciar</button>
+                        </form>
+
+                        <form method="post" action="{{ url_for('game_delete', game_id=g.id) }}"
+                              class="d-inline"
+                              onsubmit="return confirm('¿Eliminar esta mesa por completo? Esta acción no se puede deshacer.');">
+                          <button class="btn btn-outline-danger btn-sm">Eliminar</button>
+                        </form>
                       </td>
                     {% endif %}
                   </tr>
