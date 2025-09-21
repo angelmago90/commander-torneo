@@ -41,8 +41,16 @@
       <img src="{{ url_for('static', filename='img/gamecomms.png') }}" class="brand-logo" alt="GameComms">
       <div>
         <h1 class="h3 mb-1">Rondas y resultados</h1>
-        <small class="text-muted">Puntuación: 1º=3 · 2º=2 · 3º=1 · Barrida: solo 1º puntúa (3).</small>
+        <small class="text-muted">Reglas: 1º=3 • 2º=2 • 3º=1 • Barrida=solo 1º suma • Salvavidas=+1</small>
       </div>
+      {% if is_admin %}
+        <div class="mb-3 d-flex gap-2">
+          <form method="post" action="{{ url_for('round_add') }}">
+            <button class="btn btn-primary btn-sm">+ Agregar ronda</button>
+          </form>
+          <a class="btn btn-outline-light btn-sm" href="{{ url_for('players_admin') }}">Gestionar jugadores</a>
+        </div>
+      {% endif %}
     </div>
 
     {% for r in rounds %}
@@ -60,7 +68,12 @@
                         onsubmit="return confirm('¿Vaciar todas las mesas de la ronda {{ r.number }}? Se mantienen los descansos.');">
                     <button class="btn btn-outline-warning btn-sm">Vaciar ronda</button>
                   </form>
-
+                  <form class="d-inline"
+                        method="post"
+                        action="{{ url_for('round_delete', round_no=r.number) }}"
+                        onsubmit="return confirm('¿Eliminar por completo la ronda {{ r.number }}? ¡No se puede deshacer!');">
+                    <button class="btn btn-outline-danger btn-sm">Eliminar ronda</button>
+                  </form>
                   <form class="d-flex align-items-center gap-2"
                         method="post"
                         action="{{ url_for('round_set_bye', round_no=r.number) }}">

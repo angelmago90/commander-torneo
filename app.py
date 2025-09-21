@@ -21,10 +21,20 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 db = SQLAlchemy(app)
 
+# --- bootstrap de esquema: añade 'active' si falta (SQLite) ---
+with app.app_context():
+    from sqlalchemy import inspect, text
+    insp = inspect(db.engine)
+    cols = [c["name"] for c in insp.get_columns("player")]
+    if "active" not in cols:
+        db.session.execute(text("ALTER TABLE player ADD COLUMN active BOOLEAN NOT NULL DEFAULT 1"))
+        db.session.commit()
+
 # ---------- MODELOS ----------
 class Player(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, unique=True, nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
 class RoundInfo(db.Model):
     """Información por ronda (por ahora, solo 'descanso')."""
@@ -176,7 +186,7 @@ def import_initial_rounds():
 # ---------- CLASIFICACIÓN ----------
 @app.route("/")
 def index():
-    players = Player.query.order_by(Player.name.asc()).all()
+    players = Player.query.filter_by(active=True).order_by(Player.name.asc()).all()
 
     # Totales (medallero + salvavidas)
     totals = {
@@ -321,7 +331,7 @@ def index():
 # ---------- PÁGINA DE RONDAS ----------
 @app.route("/rounds")
 def rounds_view():
-    players_all = Player.query.order_by(Player.name.asc()).all()
+    players_all = Player.query.filter_by(active=True).order_by(Player.name.asc()).all()
     bye_by_round = {ri.number: (ri.bye_player.name if ri.bye_player else None,
                                 ri.bye_player_id if ri.bye_player_id else None)
                     for ri in RoundInfo.query.all()}
@@ -546,6 +556,88 @@ def reset_tournament():
     flash("Torneo reiniciado: se borraron todas las mesas y descansos. Jugadores conservados.", "warning")
     return redirect(url_for("rounds_view"))
 
+# ========== ADMIN: Gestión de jugadores ==========
+
+@app.route("/admin/players")
+def players_admin():
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("index"))
+
+    from sqlalchemy import func
+    q_counts = (db.session.query(GameResult.player_id, func.count(GameResult.id))
+                .group_by(GameResult.player_id).all())
+    counts = {pid: c for pid, c in q_counts}
+    players = Player.query.order_by(Player.name.asc()).all()  # incluye activos e inactivos
+    return render_template("players.html", players=players, counts=counts)
+
+@app.route("/admin/players/add", methods=["POST"])
+def player_add():
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("index"))
+    name = (request.form.get("name") or "").strip()
+    if not name:
+        flash("El nombre no puede estar vacío.", "warning")
+        return redirect(url_for("players_admin"))
+    exists = Player.query.filter(db.func.lower(Player.name) == name.lower()).first()
+    if exists:
+        flash(f"Ya existe un jugador llamado '{name}'.", "warning")
+        return redirect(url_for("players_admin"))
+    db.session.add(Player(name=name, active=True))
+    db.session.commit()
+    flash(f"Jugador '{name}' agregado (activo).", "success")
+    return redirect(url_for("players_admin"))
+
+@app.route("/admin/players/<int:pid>/toggle", methods=["POST"])
+def player_toggle(pid):
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("index"))
+    p = Player.query.get_or_404(pid)
+    p.active = not p.active
+    db.session.commit()
+    flash(f"Jugador '{p.name}' ahora está {'activo' if p.active else 'inactivo'}.", "info")
+    return redirect(url_for("players_admin"))
+
+
+# ========== ADMIN: Rondas (crear / eliminar) ==========
+
+@app.route("/rounds/add", methods=["POST"])
+def round_add():
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("rounds_view"))
+
+    # próximo número = max(número en RoundInfo, número en Game) + 1
+    max_ri = db.session.query(db.func.max(RoundInfo.number)).scalar() or 0
+    max_g  = db.session.query(db.func.max(Game.round_number)).scalar() or 0
+    next_no = max(max_ri, max_g) + 1
+
+    ri = RoundInfo(number=next_no)
+    db.session.add(ri)
+    db.session.commit()
+    flash(f"Ronda {next_no} creada (vacía). Usa 'Editar mesas' para asignar jugadores.", "success")
+    return redirect(url_for("rounds_view"))
+
+
+@app.route("/rounds/<int:round_no>/delete", methods=["POST"])
+def round_delete(round_no):
+    if not session.get("is_admin"):
+        flash("No autorizado.", "danger")
+        return redirect(url_for("rounds_view"))
+
+    # Borra todas las mesas de la ronda (con sus resultados) y el RoundInfo
+    games = Game.query.filter_by(round_number=round_no).all()
+    for g in games:
+        db.session.delete(g)  # cascade elimina GameResult
+    ri = RoundInfo.query.filter_by(number=round_no).first()
+    if ri:
+        db.session.delete(ri)
+    db.session.commit()
+    flash(f"Ronda {round_no} eliminada por completo.", "warning")
+    return redirect(url_for("rounds_view"))
+
 # --- util ---
 def get_or_create_game(round_no: int, table_no: int) -> Game:
     g = Game.query.filter_by(round_number=round_no, table_no=table_no).first()
@@ -562,7 +654,7 @@ def round_edit(round_no):
         flash("No autorizado.", "danger")
         return redirect(url_for("rounds_view"))
 
-    players = Player.query.order_by(Player.name.asc()).all()
+    players = Player.query.filter_by(active=True).order_by(Player.name.asc()).all()
     all_ids = [p.id for p in players]
 
     # Carga estado actual de la ronda
